@@ -1,0 +1,28 @@
+Version1
+
+select监听所有的fd， 然后把读写事件分发给线程
+
+一个fd可能会由多个线程处理 
+
+缺点就是读事件只能单线程处理 因为如果多线程的话 在线程没有读取完所有数据后 就会一直是可读的  就会一直向不同的线程里塞
+同一个fd 多个线程对同一个fd进行读取 会有问题 会混乱
+		for (u_int i = 0; i < read_set.fd_count; i++)
+		{
+// 			printf("put %d to task\n", read_set.fd_array[i]);
+// 			CDispatchTask* pTask = new CDispatchTask(e_ReadType, read_set.fd_array[i], this);
+// 			m_ListenThreadPool.AddTask(pTask);
+
+			SOCKET fd = read_set.fd_array[i];
+			CBaseSocket* pSocket = FindBaseSocket((net_handle_t)fd);
+			if (pSocket)
+			{
+				pSocket->OnRead();
+			}
+		}
+		
+Version2 
+每个工作线程都进行select IO复用
+相当于accept之后就把这个fd交给特定的线程 也就是一个fd自始至终都由一个线程进行处理 
+
+会优于Version1 不会因为读事件阻塞 因为服务器读事件比较多	
+
