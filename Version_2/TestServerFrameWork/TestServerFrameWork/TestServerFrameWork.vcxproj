@@ -83,7 +83,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\src\BaseSocket.cpp" />
-    <ClCompile Include="..\src\EventDispatch.cpp" />
     <ClCompile Include="..\src\Lock.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\ServerDeal.cpp" />
@@ -96,7 +95,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\BaseSocket.h" />
-    <ClInclude Include="..\src\EventDispatch.h" />
+    <ClInclude Include="..\src\CommonDef.h" />
     <ClInclude Include="..\src\INotify.h" />
     <ClInclude Include="..\src\IServerNotify.h" />
     <ClInclude Include="..\src\Lock.h" />

@@ -1,6 +1,7 @@
 #include "WgdServer.h"
 #include "EventDispatch.h"
 #include "WgdConn.h"
+#include "CommonDef.h"
 
 void CWgdServer::OnStatisticEnd()
 {
@@ -44,6 +45,52 @@ CWgdServer::~CWgdServer()
 	}
 }
 
+void CWgdServer::StartSendThread()
+{
+	//CreateThread(NULL, 0, StartRoutine, this, 0, &m_SendThread_id);
+}
+
+DWORD WINAPI CWgdServer::StartRoutine(LPVOID arg)
+{
+	CWgdServer* pThread = (CWgdServer*)arg;
+
+	pThread->Execute();
+
+	return NULL;
+}
+
+void CWgdServer::Execute()
+{
+#if 0
+	while (true)
+	{
+		int nSize = 0;
+		SendData sd;
+		m_send_lock.lock();
+		nSize = m_thread_list.size();
+		if (nSize > 0)
+		{
+			sd = m_thread_list.front();
+			m_thread_list.pop();
+		}
+		m_send_lock.unlock();
+
+		if (nSize <= 0)
+		{
+			Sleep(MIN_TIMER_DURATION);
+			continue;
+		}
+
+		CBaseSocket* pSocket = FindBaseSocket(sd.fd);
+
+		pSocket->Send(sd.pData, sd.len);
+
+		if (sd.pData)
+			delete sd.pData;
+	}
+#endif
+}
+
 bool CWgdServer::init()
 {
 	int ret = NETLIB_OK;
@@ -63,14 +110,16 @@ bool CWgdServer::init()
 
 int CWgdServer::StartWork()
 {
-	CBaseSocket* pSocket = new CBaseSocket(this);
-	if (!pSocket)
+	m_pMainSocket = new CBaseSocket();
+	if (!m_pMainSocket)
 		return NETLIB_ERROR;
 
-	int ret =  pSocket->Listen(m_ip, m_port, this);
+	m_pMainSocket->SetMainServer(this);
+
+	int ret =  m_pMainSocket->Listen(m_ip, m_port);
 	if (ret == NETLIB_ERROR)
 	{		
-		delete pSocket;
+		delete m_pMainSocket;
 		return ret;
 	}
 
@@ -120,10 +169,9 @@ void CWgdServer::StartDispatch(uint32_t wait_timeout)
 		for (u_int i = 0; i < read_set.fd_count; i++)
 		{
 			SOCKET fd = read_set.fd_array[i];
-			CBaseSocket* pSocket = FindBaseSocket((net_handle_t)fd);
-			if (pSocket)
+			if (m_pMainSocket)
 			{
-				pSocket->OnRead();
+				m_pMainSocket->OnRead();
 			}
 		}
 	}
@@ -151,70 +199,7 @@ void CWgdServer::AddEventForMainSocket(SOCKET fd, uint8_t socket_event)
 
 void CWgdServer::AddEvent(SOCKET fd, uint8_t socket_event)
 {
-	uint32_t idx = m_ListenThreadPool.AddEvent(fd, socket_event);
-}
-
-void CWgdServer::AddBaseSocket(CBaseSocket* pSocket)
-{
-	m_sockMap_lock.lock();
-	m_socket_map.insert(make_pair((net_handle_t)pSocket->GetSocket(), pSocket));
-	m_sockMap_lock.unlock();
-}
-
-void CWgdServer::RemoveBaseSocket(CBaseSocket* pSocket)
-{
-	m_sockMap_lock.lock();
-	m_socket_map.erase((net_handle_t)pSocket->GetSocket());
-	m_sockMap_lock.unlock();
-}
-
-CBaseSocket* CWgdServer::FindBaseSocket(net_handle_t fd)
-{
-	CBaseSocket* pSocket = NULL;
-
-	m_sockMap_lock.lock();
-	SocketMap::iterator iter = m_socket_map.find(fd);
-	if (iter != m_socket_map.end())
-	{
-		pSocket = iter->second;
-		//pSocket->AddRef();
-	}
-	m_sockMap_lock.unlock();
-
-	return pSocket;
-}
-
-int	CWgdServer::OnRead(net_handle_t fd)
-{
-	CWGDConn* pConn = FindWgdConn(fd);
-	if (pConn)
-		pConn->OnRead();
-
-	return 0;
-}
-
-int	CWgdServer::OnClose(net_handle_t fd)
-{
-	CBaseSocket* pSocket = FindBaseSocket(fd);
-	if (!pSocket)
-		return NETLIB_ERROR;
-
-	RemoveBaseSocket(pSocket);
-	int ret = pSocket->Close();
-
-	RemoveWgdConn(fd);
-
-	return ret;
-}
-
-int	CWgdServer::OnConnect(net_handle_t fd)
-{
-	CWGDConn* pConn = new CWGDConn();
-	pConn->OnConnect(fd, FindBaseSocket(fd));
-
-	AddWgdConn(pConn, fd);
-
-	return 0;
+	m_ListenThreadPool.AddEvent(fd, socket_event);
 }
 
 void CWgdServer::AddWgdConn(CWGDConn* pConn, net_handle_t fd)
@@ -263,13 +248,57 @@ int	CWgdServer::ReConnect(net_handle_t fd)
 	return 0;
 }
 
-int	CWgdServer::OnWrite(net_handle_t fd)
-{
-	return 0;
-}
-
 int	CWgdServer::OnExcept(net_handle_t fd)
 {
 
 	return 0;
+}
+
+int	CWgdServer::OnReceivedNotify(net_handle_t fd, void* pData, int len)
+{
+	if (NULL == pData || len <= 0)
+	{
+		return -1;
+	}
+
+	WGDHEAD* pHead = (WGDHEAD*)pData;
+
+	OnTest(fd, pData, len);
+
+// 	switch(pHead->nSubCmd)
+// 	{
+// 	case 1:
+// 		OnTest(fd, pData, len);
+// 		break;
+// 	default:
+		//break;
+// 	}
+
+	return 0;
+}
+
+void	CWgdServer::OnTest(net_handle_t fd, void* pData, int len)
+{
+	WGDHEAD* pHead = (WGDHEAD*)pData;
+
+	printf("Have Receive Data Cmd: %d\n", pHead->nSubCmd);
+
+	CWGDConn* pConn = FindWgdConn(fd);
+
+	WGDHEAD wh;
+	wh.nParentCmd = pHead->nSubCmd;
+	wh.nDataLen = 1024;
+
+	char buf[1024];
+	for (int i = 0; i < 1024; ++i)
+		buf[i] = 'a';
+
+	int nTotalSize = sizeof(WGDHEAD)+1024;
+	char* pSendData = new char[nTotalSize];
+	memcpy(pSendData, &wh, sizeof(WGDHEAD));
+	memcpy(pSendData+sizeof(WGDHEAD), buf, 1024);
+
+	pConn->Send(pSendData, nTotalSize);
+
+	delete [] pSendData;
 }

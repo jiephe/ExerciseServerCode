@@ -3,6 +3,7 @@
 #include "ThreadPool.h"
 #include "BaseSocket.h"
 #include "WgdServer.h"
+#include "WgdConn.h"
 
 CWorkerThread::CWorkerThread()
 {
@@ -124,10 +125,10 @@ void CWorkerThread::StartDispatch(uint32_t wait_timeout)
 		for (u_int i = 0; i < read_set.fd_count; i++)
 		{
 			SOCKET fd = read_set.fd_array[i];
-			CBaseSocket* pSocket = m_pBaseServer->FindBaseSocket((net_handle_t)fd);
-			if (pSocket)
+			CWGDConn* pConn = m_pBaseServer->FindWgdConn((net_handle_t)fd);
+			if (pConn)
 			{
-				int nRet = pSocket->OnRead();
+				int nRet = pConn->OnRead();
 				if (nRet == -1)
 				{
 					// ±ªπÿ±’¡À
@@ -140,11 +141,11 @@ void CWorkerThread::StartDispatch(uint32_t wait_timeout)
 		for (u_int i = 0; i < write_set.fd_count; i++)
 		{
 			SOCKET fd = read_set.fd_array[i];
-			CBaseSocket* pSocket = m_pBaseServer->FindBaseSocket((net_handle_t)fd);
-			if (pSocket)
+			CWGDConn* pConn = m_pBaseServer->FindWgdConn((net_handle_t)fd);
+			if (pConn)
 			{
 				RemoveEvent(fd, SOCKET_WRITE);
-				pSocket->OnWrite();
+				pConn->OnWrite();
 			}
 		}
 	}

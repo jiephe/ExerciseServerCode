@@ -5,6 +5,7 @@
 #include "IServerNotify.h"
 #include "BaseSocket.h"
 #include "ThreadPool.h"
+#include "CommonDef.h"
 #include <map>
 
 class CWGDConn;
@@ -12,7 +13,7 @@ class CWGDConn;
 typedef hash_map<net_handle_t, CBaseSocket*>	SocketMap;
 typedef map<net_handle_t, CWGDConn*>			ConnMap_t;
 
-class CWgdServer: public IServerNotify
+class CWgdServer : public IServerNotify
 {
 public:
 	CWgdServer(int8_t ip[], uint16_t port, int nThreadNum);
@@ -28,25 +29,30 @@ public:
 	DWORD	m_dwTime;
 
 public:
-	virtual int			OnRead(net_handle_t fd);
+	void		StartSendThread();
 
-	virtual int			OnWrite(net_handle_t fd);
+	static  DWORD WINAPI StartRoutine(LPVOID arg);
 
+	void		Execute();
+
+	unit32_long_t		m_SendThread_id;
+
+	list_data_t			m_thread_list;
+
+	CLock				m_send_lock;
+
+public:
 	virtual int			OnExcept(net_handle_t fd);
 
-	virtual	int			OnClose(net_handle_t fd);
-
-	virtual int			OnConnect(net_handle_t fd);
+	virtual int			OnConnect(net_handle_t fd) {return 0;}
 
 	virtual int			ReConnect(net_handle_t fd);
 
+	virtual int			OnReceivedNotify(net_handle_t fd, void* pData, int len);
+
+	void	OnTest(net_handle_t fd, void* pData, int len);
+
 public:
-	void AddBaseSocket(CBaseSocket* pSocket);
-
-	void RemoveBaseSocket(CBaseSocket* pSocket);
-
-	CBaseSocket* FindBaseSocket(net_handle_t fd);
-
 	void AddEventForMainSocket(SOCKET fd, uint8_t socket_event);
 
 	void AddEvent(SOCKET fd, uint8_t socket_event);
@@ -71,10 +77,6 @@ private:
 
 	uint16_t			m_port;
 
-	SocketMap			m_socket_map;
-
-	CLock				m_sockMap_lock;
-
 	CThreadPool			m_ListenThreadPool;
 
 	uint32_t			m_ThreadNum;
@@ -92,6 +94,8 @@ private:
 	CLock				m_ConnMap_lock;
 
 	ConnMap_t			m_conn_map;
+
+	CBaseSocket*		m_pMainSocket;
 };
 
 

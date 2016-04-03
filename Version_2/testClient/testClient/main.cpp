@@ -17,9 +17,20 @@ public:
 
 int CMyNotify::onData(void* data, int len)
 {
-	char* pString = (char*)data;
+	int nHeadSize = sizeof(WGDHEAD);
+	if (len < nHeadSize)
+	{
+		return -1;
+	}
 
-	printf("receive data : [%s]", pString);
+	WGDHEAD* pHead = (WGDHEAD*)data;
+	int nTotalSize = nHeadSize + pHead->nDataLen;
+	if (len < nTotalSize)
+	{
+		return -1;
+	}
+
+	printf("Have receive Server ack:[%d] totolSize:[%d]\n", pHead->nParentCmd, len);
 
 	return 0;
 }
@@ -30,7 +41,7 @@ int main()
  
  	CJSClient cjsClient(pNofity);
 
- 	int nRet = cjsClient.Connect("127.0.0.1", 19889);
+ 	int nRet = cjsClient.Connect("127.0.0.1", 19887);
 
 	char* pbuf = new char[TEST_SIZE];
 	for (int i = 0; i < TEST_SIZE; ++i)
@@ -45,7 +56,7 @@ int main()
 	{
 		memset(pM, 0x0, nTotalSize);
 		WGDHEAD head;
-		head.nCmd = i;
+		head.nSubCmd = i;
 		head.nDataLen = TEST_SIZE;
 		memcpy(pM, &head, sizeof(WGDHEAD));
 		memcpy(pM+sizeof(WGDHEAD), pbuf, TEST_SIZE);

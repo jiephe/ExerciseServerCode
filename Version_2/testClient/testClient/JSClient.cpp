@@ -24,12 +24,13 @@ CJSClient::CJSClient(CNotify* pNofity)
 		}
 	}
 
-	nRet = ::bind(m_fd, (sockaddr*)&serv_addr, sizeof(serv_addr));
+	//nRet = ::bind(m_fd, (sockaddr*)&serv_addr, sizeof(serv_addr));
 
 	m_buffer.clear();
 
 	m_bRunning = true;
 
+#if 0
 	{
 		// ¿ªÆôKeepAlive
 		BOOL bKeepAlive = TRUE;
@@ -52,6 +53,7 @@ CJSClient::CJSClient(CNotify* pNofity)
 			
 		}
 	}
+#endif
 }
 
 CJSClient::~CJSClient()
@@ -193,17 +195,17 @@ int CJSClient::OnRead(SOCKET fd)
 	
 	if (!m_buffer.empty())
 	{
-		onData();
+		int nRet = onData();
+		if (nRet == 0)
+			m_buffer.clear();
 	}
 
 	return 0;
 }
 
-void CJSClient::onData()
+int CJSClient::onData()
 {
-	m_pNotify->onData((void*)&m_buffer[0], m_buffer.size());
-
-	return ;
+	return m_pNotify->onData((void*)&m_buffer[0], m_buffer.size());
 }
 
 int CJSClient::Send(const char* buf, int len)
@@ -227,7 +229,7 @@ int CJSClient::Send(const char* buf, int len)
 		{
 			if (WSAEWOULDBLOCK == WSAGetLastError())
 			{
-				printf("Send fail, error[%d] continue \n", WSAGetLastError());
+				//printf("Send fail, error[%d] continue \n", WSAGetLastError());
 				continue;
 			}
 			else

@@ -5,22 +5,22 @@
 #include "SimpleBuffer.h"
 
 class CBaseSocket;
+class CWgdServer;
 
 class CWGDConn : public CRefObject
 {
 public:
-	CWGDConn();
+	CWGDConn(CWgdServer* pNotify);
 
 	~CWGDConn();
 
 public:
-
-	void OnConnect(net_handle_t handle, CBaseSocket* pBaseSocket);
-
 	virtual void OnConfirm() {}
-	virtual void OnRead();
+	virtual int  OnRead();
 	virtual void OnWrite();
-	virtual void OnClose() {}
+	virtual void OnClose();
+
+	void SetBaseSocket(CBaseSocket* pBaseSocket) {m_pBaseSocket = pBaseSocket;}
 
 	int Send(void* data, int len);
 
@@ -44,6 +44,8 @@ private:
 	CSimpleBuffer			m_out_buf;
 
 	bool					m_busy;
+
+	CWgdServer*				m_pServer;
 };
 
 #endif

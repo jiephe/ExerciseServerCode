@@ -18,9 +18,6 @@
     <ClCompile Include="..\src\BaseSocket.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\EventDispatch.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\Lock.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -51,9 +48,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\BaseSocket.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\EventDispatch.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Lock.h">
@@ -90,6 +84,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\WgdConn.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\CommonDef.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

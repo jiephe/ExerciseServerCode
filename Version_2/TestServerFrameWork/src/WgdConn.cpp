@@ -3,20 +3,18 @@
 #include <io.h>
 #include "BaseSocket.h"
 #include "WgdServer.h"
+#include "CommonDef.h"
 
-CWGDConn::CWGDConn()
+CWGDConn::CWGDConn(CWgdServer* pNotify):m_pServer(pNotify)
 {
 	m_busy = false;
+
+	m_pBaseSocket = NULL;
 }
 
 CWGDConn::~CWGDConn()
 {
 
-}
-
-void CWGDConn::OnConnect(net_handle_t handle, CBaseSocket* pBaseSocket)
-{
-	m_pBaseSocket = pBaseSocket;
 }
 
 int32_t CWGDConn::ParseBuffer(CSimpleBuffer& simpleBuffer)
@@ -46,9 +44,9 @@ int32_t CWGDConn::DealBuffer(CSimpleBuffer & simpleBuffer)
 	WGDHEAD* pHead = (WGDHEAD*)pBuffer;
 	int32_t nTotalSize = sizeof(WGDHEAD) + pHead->nDataLen;
 
-	m_pBaseSocket->m_pBaseServer->OnStatisticEnd();
+	//m_pBaseSocket->m_pBaseServer->OnStatisticEnd();
 
-	printf("Have Receive Data Cmd: %d\n", pHead->nCmd);
+	m_pServer->OnReceivedNotify(m_pBaseSocket->GetSocket(), pBuffer, nTotalSize);
 
 	simpleBuffer.Read(NULL, nTotalSize);
 
@@ -183,8 +181,25 @@ int32_t CWGDConn::ReadFile(const std::string & strFilePath, CSimpleBuffer & buff
 	return int32_t(-1);
 }
 
-void CWGDConn::OnRead()
+void CWGDConn::OnClose() 
 {
+	net_handle_t fd = m_pBaseSocket->GetSocket();
+
+	m_pBaseSocket->Close();
+
+	m_pServer->RemoveWgdConn(fd);
+}
+
+int CWGDConn::OnRead()
+{
+	u_long avail = 0;
+	int nRet = ioctlsocket(m_pBaseSocket->GetSocket(), FIONREAD, &avail);
+	if ( (nRet == SOCKET_ERROR) || (avail == 0) )
+	{
+		OnClose();
+		return -1;
+	}
+
 	char szRcvBuf[8192] = { 0 };
 
 	int READ_BUF_SIZE = 8192;
@@ -208,10 +223,21 @@ void CWGDConn::OnRead()
 	}
 
 	ParseBuffer(m_in_buf);
+
+	return 0;
 }
 
 void CWGDConn::OnWrite()
 {
+	int error = 0;
+	socklen_t len = sizeof(error);
+	getsockopt(m_pBaseSocket->GetSocket(), SOL_SOCKET, SO_ERROR, (char*)&error, &len);
+	if (error) 
+	{
+		OnClose();
+		return ;
+	}
+
 	if (!m_busy)
 		return;
 
@@ -241,7 +267,6 @@ void CWGDConn::OnWrite()
 
 int CWGDConn::Send(void* data, int len)
 {
-#if 0
 	int offset = 0;
 	int remain = len;
 
@@ -251,10 +276,10 @@ int CWGDConn::Send(void* data, int len)
 		if (send_size > 8192)
 			send_size = 8192;
 
-		int nSend = send((char*)data + offset, send_size, 0);
+		int nSend = m_pBaseSocket->Send((char*)data + offset, send_size);
 		if (nSend <= 0)
 		{
-			if (SOCKET_ERROR == nSend && WSAGetLastError() == WSAEWOULDBLOCK)
+			if ((WSAGetLastError() == WSAEINPROGRESS) || (WSAGetLastError() == WSAEWOULDBLOCK))
 			{
 				continue;
 			}
@@ -265,39 +290,6 @@ int CWGDConn::Send(void* data, int len)
 		offset += nSend;
 		remain -= nSend;
 	}
-#endif
 
 	return 0;
-
-// 	if (m_busy)
-// 	{
-// 		m_out_buf.Write(data, len);
-// 		return len;
-// 	}
-// 
-// 	int offset = 0;
-// 	int remain = len;
-// 	while (remain > 0) {
-// 		int send_size = remain;
-// 		if (send_size > NETLIB_MAX_SOCKET_BUF_SIZE) {
-// 			send_size = NETLIB_MAX_SOCKET_BUF_SIZE;
-// 		}
-// 
-// 		int ret = netlib_send_inner(m_handle, (char*)data + offset, send_size);
-// 		if (ret <= 0) {
-// 			ret = 0;
-// 			break;
-// 		}
-// 
-// 		offset += ret;
-// 		remain -= ret;
-// 	}
-// 
-// 	if (remain > 0)
-// 	{
-// 		m_out_buf.Write((char*)data + offset, remain);
-// 		m_busy = true;
-// 	}
-
-	//return 0;
 }

@@ -7,11 +7,12 @@
 class IServerNotify;
 
 class CWgdServer;
+class CWGDConn;
 
 class CBaseSocket : public CRefObject
 {
 public:
-	CBaseSocket(CWgdServer* pBaseServer);
+	CBaseSocket();
 	
 	virtual ~CBaseSocket();
 
@@ -23,7 +24,13 @@ public:
 	void SetRemotePort(uint16_t port) { m_remote_port = port; }
 	void SetSendBufSize(uint32_t send_size);
 	void SetRecvBufSize(uint32_t recv_size);
-	void SetNotify(IServerNotify* pNotify) {m_Notify = pNotify;}
+
+	void SetIsListenSocket(bool bListen) {m_bListenSocket = bListen;}
+	bool IsListenSocket() {return m_bListenSocket;}
+	
+	void SetMainServer(CWgdServer* pServer) {m_pBaseServer = pServer;}
+
+	void SetConn(CWGDConn* pConn) {m_pConn = pConn;}
 
 	const char*	GetRemoteIP() { return m_remote_ip.c_str(); }
 	uint16_t	GetRemotePort() { return m_remote_port; }
@@ -33,13 +40,11 @@ public:
 public:
 	int Listen(
 		const char*		server_ip, 
-		uint16_t		port,
-		IServerNotify*	pNotify);
+		uint16_t		port);
 
 	net_handle_t Connect(
 		const char*		server_ip, 
-		uint16_t		port,
-		IServerNotify*  pNotify);
+		uint16_t		port);
 
 	int Send(void* buf, int len);
 
@@ -47,7 +52,9 @@ public:
 
 	int Close();
 
-	CWgdServer*		m_pBaseServer;
+	CWgdServer*		m_pBaseServer;			// for listen socket
+
+	CWGDConn*		m_pConn;				// for connect socket -- main working for send and receive data
 
 public:	
 	int  OnRead();
@@ -72,11 +79,9 @@ private:
 	uint16_t		m_local_port;
 
 	uint8_t			m_state;
-	SOCKET			m_socket;
+	SOCKET			m_socket;	
 
-	IServerNotify*	m_Notify;
-
-	
+	bool			m_bListenSocket;
 };
 
 #endif

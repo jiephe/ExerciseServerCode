@@ -80,11 +80,4 @@ enum
 const uint32_t INVALID_UINT32  = (uint32_t) -1;
 const uint32_t INVALID_VALUE = 0;
 
-typedef struct _tagWGDHEAD
-{
-	int				nCmd;
-	int				nDataLen;
-}WGDHEAD;
-
-
 #endif

@@ -9,8 +9,9 @@ typedef std::vector<char>	ByteBuf_t;
 
 typedef struct _tagWGDHEAD
 {
-	int			nCmd;
-	int			nDataLen;
+	int				nParentCmd;
+	int				nSubCmd;
+	int				nDataLen;
 }WGDHEAD;
 
 class CJSClientListener
@@ -38,7 +39,7 @@ public:
 
 	int Send(const char* buf, int len);
 
-	void onData();
+	int onData();
 
 	static  DWORD WINAPI StartRoutine(LPVOID arg);
 

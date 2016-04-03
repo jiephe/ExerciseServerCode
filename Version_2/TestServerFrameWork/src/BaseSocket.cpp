@@ -1,16 +1,13 @@
 #include "BaseSocket.h"
 #include "Lock.h"
 #include "WgdServer.h"
+#include "WgdConn.h"
 
-CBaseSocket::CBaseSocket(CWgdServer* pBaseServer)
+CBaseSocket::CBaseSocket()
 {
 	m_socket = INVALID_SOCKET;
 
 	m_state = SOCKET_STATE_IDLE;
-
-	m_Notify = NULL;
-
-	m_pBaseServer = pBaseServer;
 }
 
 CBaseSocket::~CBaseSocket()
@@ -18,11 +15,10 @@ CBaseSocket::~CBaseSocket()
 	printf("CBaseSocket::~CBaseSocket, socket=%d\n", m_socket);
 }
 
-int CBaseSocket::Listen(const char* server_ip, uint16_t port, IServerNotify* pNotify)
+int CBaseSocket::Listen(const char* server_ip, uint16_t port)
 {
 	m_local_ip = server_ip;
 	m_local_port = port;
-	m_Notify = pNotify;
 
 	m_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (m_socket == INVALID_SOCKET)
@@ -58,20 +54,17 @@ int CBaseSocket::Listen(const char* server_ip, uint16_t port, IServerNotify* pNo
 
 	printf("CBaseSocket::Listen on %s:%d\n", server_ip, port);
 
-	m_pBaseServer->AddBaseSocket(this);
 	m_pBaseServer->AddEventForMainSocket(m_socket, SOCKET_READ | SOCKET_EXCEP);
 	return NETLIB_OK;
 }
 
-net_handle_t CBaseSocket::Connect(const char* server_ip, uint16_t port, IServerNotify* pNotify)
+net_handle_t CBaseSocket::Connect(const char* server_ip, uint16_t port)
 {
 	printf("CBaseSocket::Connect, server_ip=%s, port=%d\n", server_ip, port);
 
 	m_remote_ip = server_ip;
 
 	m_remote_port = port;
-
-	m_Notify = pNotify;
 
 	m_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (m_socket == INVALID_SOCKET)
@@ -92,7 +85,6 @@ net_handle_t CBaseSocket::Connect(const char* server_ip, uint16_t port, IServerN
 		return NETLIB_INVALID_HANDLE;
 	}
 	m_state = SOCKET_STATE_CONNECTING;
-	m_pBaseServer->AddBaseSocket(this);
 	m_pBaseServer->AddEvent(m_socket, SOCKET_ALL);
 	
 	return (net_handle_t)m_socket;
@@ -104,20 +96,6 @@ int CBaseSocket::Send(void* buf, int len)
 		return NETLIB_ERROR;
 
 	int ret = send(m_socket, (char*)buf, len, 0);
-	if (ret == SOCKET_ERROR)
-	{
-		int err_code = _GetErrorCode();
-		if (_IsBlock(err_code))
-		{
-			m_pBaseServer->AddEvent(m_socket, SOCKET_WRITE);
-			ret = 0;
-		}
-		else
-		{
-			
-		}
-	}
-
 	return ret;
 }
 
@@ -128,6 +106,8 @@ int CBaseSocket::Recv(void* buf, int len)
 
 int CBaseSocket::Close()
 {
+	m_state = SOCKET_STATE_CLOSING;
+
 	closesocket(m_socket);
 
 	delete this;
@@ -141,52 +121,17 @@ int CBaseSocket::OnRead()
 	{
 		_AcceptNewSocket();
 	}
-	else
-	{
-		u_long avail = 0;
-		int nRet = ioctlsocket(m_socket, FIONREAD, &avail);
-		if ( (nRet == SOCKET_ERROR) || (avail == 0) )
-		{
-			m_Notify->OnClose((net_handle_t)m_socket);
-			return -1;
-		}
-		else
-		{
-			m_Notify->OnRead((net_handle_t)m_socket);
-		}
-	}
 
 	return 0;
 }
 
 void CBaseSocket::OnWrite()
 {
-	if (m_state == SOCKET_STATE_CONNECTING)
-	{
-		int error = 0;
-		socklen_t len = sizeof(error);
-		getsockopt(m_socket, SOL_SOCKET, SO_ERROR, (char*)&error, &len);
-		if (error) 
-		{
-			m_Notify->OnClose((net_handle_t)m_socket);
-		}
-		else 
-		{
-			m_state = SOCKET_STATE_CONNECTED;
-			m_Notify->ReConnect((net_handle_t)m_socket);
-		}
-	}
-	else
-	{
-		m_Notify->OnWrite((net_handle_t)m_socket);
-	}
+	
 }
 
 void CBaseSocket::OnClose()
 {
-	m_state = SOCKET_STATE_CLOSING;
-
-	m_Notify->OnClose((net_handle_t)m_socket);
 }
 
 void CBaseSocket::SetSendBufSize(uint32_t send_size)
@@ -284,7 +229,7 @@ void CBaseSocket::_AcceptNewSocket()
 	char ip_str[64];
 	while ( (fd = accept(m_socket, (sockaddr*)&peer_addr, &addr_len)) != INVALID_SOCKET )
 	{
-		CBaseSocket* pSocket = new CBaseSocket(m_pBaseServer);
+		CBaseSocket* pSocket = new CBaseSocket();
 		uint32_t ip = ntohl(peer_addr.sin_addr.s_addr);
 		uint16_t port = ntohs(peer_addr.sin_port);
 
@@ -296,12 +241,13 @@ void CBaseSocket::_AcceptNewSocket()
 		pSocket->SetState(SOCKET_STATE_CONNECTED);
 		pSocket->SetRemoteIP(ip_str);
 		pSocket->SetRemotePort(port);
-		pSocket->SetNotify(m_Notify);
 
 		_SetNoDelay(fd);
 		_SetNonblock(fd);
-		m_pBaseServer->AddBaseSocket(pSocket);
-		m_Notify->OnConnect((net_handle_t)fd);
+		CWGDConn* pConn = new CWGDConn(m_pBaseServer);
+		pConn->SetBaseSocket(pSocket);
+		pSocket->SetConn(pConn);
+		m_pBaseServer->AddWgdConn(pConn, fd);
 		m_pBaseServer->AddEvent(fd, SOCKET_READ | SOCKET_EXCEP);
 	}
 }
